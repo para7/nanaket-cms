@@ -14,29 +14,22 @@ help: ## Show this help message
 	@echo 'Available targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-install-tools: ## Install required tools (psqldef, sqlc)
-	@echo "Installing psqldef..."
-	@go install github.com/sqldef/sqldef/cmd/psqldef@latest
-	@echo "Installing sqlc..."
-	@go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
-	@echo "Tools installed successfully!"
-
 db-up: ## Start PostgreSQL database
-	docker-compose up -d postgres
+	docker compose up -d postgres
 	@echo "Waiting for database to be ready..."
 	@sleep 3
 
 db-down: ## Stop PostgreSQL database
-	docker-compose down
+	docker compose down
 
 db-migrate: ## Apply schema migrations using psqldef
-	psqldef -U $(DB_USER) -p $(DB_PASSWORD) -h $(DB_HOST) --port $(DB_PORT) $(DB_NAME) < db/schema/schema.sql
+	PGPASSWORD=$(DB_PASSWORD) psqldef -U $(DB_USER) -h $(DB_HOST) -p $(DB_PORT) $(DB_NAME) < db/schema/schema.sql
 
 db-generate: ## Generate Go code from SQL using sqlc
-	sqlc generate
+	go tool sqlc generate
 
 db-reset: db-down ## Reset database (remove volumes and restart)
-	docker-compose down -v
+	docker compose down -v
 	$(MAKE) db-up
 	@echo "Waiting for database to be ready..."
 	@sleep 3
