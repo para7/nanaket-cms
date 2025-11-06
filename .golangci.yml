@@ -1,0 +1,26 @@
+version: 2
+
+run:
+  timeout: 5m
+  tests: true
+
+# Use standard preset (golangci-lint v2)
+preset: standard
+
+linters-settings:
+  goimports:
+    local-prefixes: github.com/para7/nanaket-cms
+
+issues:
+  exclude-rules:
+    # Exclude some linters from running on tests files
+    - path: _test\.go
+      linters:
+        - errcheck
+        - gosec
+
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+output:
+  sort-results: true

@@ -1,4 +1,4 @@
-.PHONY: help db-up db-down db-migrate db-generate db-reset install-tools
+.PHONY: help db-up db-down db-migrate db-generate db-reset install-tools lint lint-fix
 
 # Database configuration
 DB_HOST=localhost
@@ -40,3 +40,9 @@ dev: db-up db-migrate db-generate ## Setup development environment
 
 run: ## Run the application
 	go run cmd/api/main.go
+
+lint: ## Run golangci-lint
+	golangci-lint run ./...
+
+lint-fix: ## Run golangci-lint with auto-fix
+	golangci-lint run --fix ./...
