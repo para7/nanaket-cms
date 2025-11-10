@@ -22,6 +22,7 @@ db-down: ## Stop PostgreSQL database
 
 db-migrate: ## Apply schema migrations using psqldef
 	PGPASSWORD=$(DB_PASSWORD) psqldef -U $(DB_USER) -h $(DB_HOST) -p $(DB_PORT) $(DB_NAME) < db/schema/schema.sql
+	docker compose exec -T postgres psql -U $(DB_USER) -d $(DB_NAME) < db/schema/functions.sql
 
 db-generate: ## Generate Go code from SQL using sqlc
 	go tool sqlc generate
