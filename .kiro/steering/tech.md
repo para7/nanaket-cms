@@ -2,160 +2,81 @@
 
 ## Architecture
 
-### System Design
-Database-first architecture where the PostgreSQL schema serves as the single source of truth. The application uses automated code generation to create type-safe Go interfaces for all database operations.
+クリーンアーキテクチャベースの3層構造（Handler → Usecase → Repository）
 
-**Key Flow**: Schema Definition → Migration → Query Definition → Code Generation → Application Code
+## Core Technologies
 
-### Database Layer
-- **PostgreSQL 18**: Primary data store running in Docker
-- **psqldef**: Declarative schema migration tool - applies changes idempotently
-- **sqlc**: SQL-to-Go code generator - creates type-safe database access code
-- **pgx/v5**: High-performance PostgreSQL driver for Go
+- **Language**: Go 1.25.3
+- **Database**: PostgreSQL 18 (pgx/v5ドライバ)
+- **HTTP Server**: 標準ライブラリ `net/http`（フレームワークレス設計）
+- **SQL Generator**: sqlc 1.30.0（型安全なクエリ生成）
 
-### Application Layer
-- **Go 1.25.3**: Primary programming language
-- **Entry Point**: `cmd/api/main.go` - API server initialization
-- **Generated Code**: `internal/db/` - sqlc-generated database access layer
+## Key Libraries
 
-## Backend
+- **pgxpool**: コネクションプール管理
+- **pgx/v5**: PostgreSQL高性能ドライバ
+- **sqlc**: SQL → Go構造体生成（コンパイル時型チェック）
 
-### Language & Runtime
-- **Go 1.25.3**: Required version specified in go.mod
-- **Module**: `github.com/para7/nanaket-cms`
+## Development Standards
 
-### Database Tools
-- **psqldef**: Declarative PostgreSQL schema management
-  - Applies schema changes based on desired state (not migration files)
-  - Idempotent operations - safe to run repeatedly
-  - Schema definition: `db/schema/schema.sql`
+### Type Safety
+- Goの静的型付けを最大限活用
+- sqlcによるDB型とGo型の一致保証
+- インターフェース指向設計（Usecase、Repositoryは全てinterface定義）
 
-- **sqlc**: Type-safe SQL code generator
-  - Configuration: `sqlc.yaml`
-  - Generates Go structs, interfaces, and implementations
-  - Supports pgx/v5 driver
-  - Features: JSON tags, interfaces, empty slice handling, null type pointers
+### Code Quality
+- **Linter**: golangci-lint（`make lint`, `make lint-fix`）
+- **Naming**: 明確な責務に基づく命名（Handler/Usecase/Repository）
+- **Error Handling**: 標準エラー返却、HTTPステータスコード適切使用
 
-### Database Driver
-- **pgx/v5** (jackc/pgx): Native PostgreSQL driver
-  - Connection pooling via `pgxpool`
-  - High performance, fully featured
-  - Used by generated sqlc code
+### Testing
+現在、テストフレームワーク未導入（今後追加予定）
 
 ## Development Environment
 
 ### Required Tools
-1. **Go 1.25.3+**: Language runtime
-2. **Docker & Docker Compose**: For PostgreSQL container
-3. **Make**: Task automation
-4. **psqldef**: Schema migration (installed separately)
-5. **sqlc**: Code generation (managed via `go tool sqlc`)
+- Go 1.25.3+
+- Docker & Docker Compose
+- PostgreSQL 18（Dockerで提供）
+- sqlc（`go tool sqlc`）
+- psqldef（スキーママイグレーション）
+- golangci-lint
 
-### Tool Installation
+### Common Commands
 ```bash
-# Install Go tools (if needed)
-go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+# Dev Setup
+make dev              # DB起動 + マイグレーション + sqlc生成
 
-# psqldef installation varies by OS
-# See: https://github.com/sqldef/sqldef
+# Database
+make db-up            # PostgreSQL起動
+make db-migrate       # スキーマ適用（psqldef）
+make db-generate      # sqlcコード生成
+make db-reset         # DB完全リセット
+
+# Development
+make run              # アプリケーション起動（ポート8080）
+make lint             # コード静的解析
+make lint-fix         # 自動修正可能なlintエラーを修正
 ```
 
-### Docker Setup
-- **Image**: `postgres:18`
-- **Container**: `nanaket-cms-db`
-- **Volume**: `postgres_data` for persistence
-- **Health Check**: Configured for readiness detection
+## Key Technical Decisions
 
-## Common Commands
+### Why Clean Architecture?
+- レイヤー間の依存を単方向に保ち、ビジネスロジックとインフラを分離
+- テスト容易性の向上（各層をモック可能）
 
-### Database Lifecycle
-```bash
-make db-up          # Start PostgreSQL container
-make db-down        # Stop PostgreSQL container
-make db-migrate     # Apply schema from db/schema/schema.sql
-make db-generate    # Generate Go code from SQL queries
-make db-reset       # Wipe database and start fresh
-make dev            # Full setup: db-up + migrate + generate
-```
+### Why Standard Library HTTP?
+- 軽量で学習コスト低
+- Go 1.22+の新しいルーティング機能（`GET /path/{id}`）を活用
 
-### Application Commands
-```bash
-make run            # Run API server (requires db-up first)
-go run cmd/api/main.go  # Direct execution
-```
+### Why sqlc over ORM?
+- SQL優先アプローチ（SQLファイルから型安全なGoコード生成）
+- パフォーマンスの透明性（生成されたコードが明確）
+- マイグレーション管理との分離（psqldefで宣言的スキーマ管理）
 
-### Development Workflow Commands
-```bash
-# After modifying db/schema/schema.sql:
-make db-migrate db-generate
+### Why pgxpool?
+- Go向け最速PostgreSQLドライバ
+- 本番環境に適したコネクションプール機能
 
-# After modifying db/queries/*.sql:
-make db-generate
-
-# Fresh start:
-make db-reset db-generate
-```
-
-## Environment Variables
-
-### Database Connection
-- **DATABASE_URL**: Full PostgreSQL connection string
-  - Default: `postgres://nanaket:nanaket@localhost:5432/nanaket_cms?sslmode=disable`
-  - Override in environment for custom configuration
-  - Used by application in `cmd/api/main.go`
-
-### Migration Variables (Makefile)
-- **DB_HOST**: Database host (default: localhost)
-- **DB_PORT**: Database port (default: 5432)
-- **DB_USER**: Database user (default: nanaket)
-- **DB_PASSWORD**: Database password (default: nanaket)
-- **DB_NAME**: Database name (default: nanaket_cms)
-
-## Port Configuration
-
-- **5432**: PostgreSQL (exposed from Docker container)
-- **Application Port**: Not yet configured (TBD in API server implementation)
-
-## Code Generation Configuration
-
-### sqlc Configuration (`sqlc.yaml`)
-```yaml
-version: "2"
-sql:
-  - engine: "postgresql"
-    queries: "db/queries"
-    schema: "db/schema"
-    gen:
-      go:
-        package: "db"
-        out: "internal/db"
-        sql_package: "pgx/v5"
-        emit_json_tags: true
-        emit_interface: true
-        emit_empty_slices: true
-        emit_pointers_for_null_types: true
-```
-
-**Key Settings**:
-- Generates `db` package in `internal/db/`
-- Uses pgx/v5 for SQL execution
-- Emits JSON tags for API serialization
-- Creates interface (`Querier`) for all operations
-- Handles null types with pointers
-
-### Generated Files (Do Not Edit Manually)
-- `internal/db/models.go`: Table struct definitions
-- `internal/db/querier.go`: Database interface
-- `internal/db/db.go`: DBTX interface wrapper
-- `internal/db/*.sql.go`: Query implementations
-
-## Dependencies
-
-Key dependencies from `go.mod`:
-- `github.com/jackc/pgx/v5 v5.7.6`: PostgreSQL driver and connection pooling
-- `github.com/sqlc-dev/sqlc v1.30.0`: SQL code generator (as tool)
-- Standard library for HTTP server (to be implemented)
-
-## Development Timezone
-
-- **TZ**: Asia/Tokyo (configured in docker-compose.yml for PostgreSQL)
+---
+_Document standards and patterns, not every dependency_
