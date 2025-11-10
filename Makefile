@@ -1,4 +1,4 @@
-.PHONY: help db-up db-down db-migrate db-generate db-reset install-tools lint lint-fix
+.PHONY: help db-up db-down db-migrate db-generate db-reset api-generate install-tools lint lint-fix
 
 # Database configuration
 DB_HOST=localhost
@@ -26,6 +26,9 @@ db-migrate: ## Apply schema migrations using psqldef
 db-generate: ## Generate Go code from SQL using sqlc
 	go tool sqlc generate
 
+api-generate: ## Generate OpenAPI server code using oapi-codegen
+	go tool oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml
+
 db-reset: db-down ## Reset database (remove volumes and restart)
 	docker compose down -v
 	$(MAKE) db-up
@@ -33,7 +36,7 @@ db-reset: db-down ## Reset database (remove volumes and restart)
 	@sleep 3
 	$(MAKE) db-migrate
 
-dev: db-up db-migrate db-generate ## Setup development environment
+dev: db-up db-migrate db-generate api-generate ## Setup development environment
 	@echo "Development environment ready!"
 
 run: ## Run the application

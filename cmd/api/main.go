@@ -10,71 +10,72 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/para7/nanaket-cms/internal/api"
 	"github.com/para7/nanaket-cms/internal/db"
-	"github.com/para7/nanaket-cms/internal/handler"
 	"github.com/para7/nanaket-cms/internal/repository"
 	"github.com/para7/nanaket-cms/internal/usecase"
 )
 
-// setupRoutes configures all application routes
-func setupRoutes(mux *http.ServeMux, pool *pgxpool.Pool) {
-	// Health check endpoint
-	mux.HandleFunc("GET /health", healthCheckHandler(pool))
-
-	// API v1 routes
-	mux.HandleFunc("GET /api/v1/status", statusHandler)
-	mux.HandleFunc("GET /api/v1/hello", helloHandler)
-
+// setupAPIServer initializes the OpenAPI server with all dependencies
+func setupAPIServer(pool *pgxpool.Pool) http.Handler {
 	// Initialize layers
 	queries := db.New(pool)
 	userRepo := repository.NewUserRepository(queries)
 	userUsecase := usecase.NewUserUsecase(userRepo)
-	userHandler := handler.NewUserHandler(userUsecase)
 
-	// User CRUD endpoints
-	mux.HandleFunc("POST /api/v1/users", userHandler.CreateUser)
-	mux.HandleFunc("GET /api/v1/users", userHandler.ListUsers)
-	mux.HandleFunc("GET /api/v1/users/{id}", userHandler.GetUser)
-	mux.HandleFunc("PUT /api/v1/users/{id}", userHandler.UpdateUser)
-	mux.HandleFunc("DELETE /api/v1/users/{id}", userHandler.DeleteUser)
+	// Create OpenAPI server implementation
+	apiServer := api.NewServer(userUsecase)
+
+	// Create chi router
+	r := chi.NewRouter()
+
+	// Add OpenAPI spec endpoint
+	r.Get("/openapi.yaml", serveOpenAPISpec)
+	r.Get("/openapi.json", serveOpenAPISpecJSON)
+
+	// Mount the generated API handler
+	return api.HandlerFromMux(apiServer, r)
 }
 
-// healthCheckHandler returns a handler that checks database connectivity
-func healthCheckHandler(pool *pgxpool.Pool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
-		defer cancel()
-
-		if err := pool.Ping(ctx); err != nil {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			_, _ = fmt.Fprintf(w, `{"status":"unhealthy","error":"%v"}`, err)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = fmt.Fprint(w, `{"status":"healthy","database":"connected"}`)
-	}
-}
-
-// statusHandler returns API status information
-func statusHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, _ = fmt.Fprint(w, `{"api":"Nanaket CMS","version":"1.0.0","status":"running"}`)
-}
-
-// helloHandler is a simple example endpoint
-func helloHandler(w http.ResponseWriter, r *http.Request) {
-	name := r.URL.Query().Get("name")
-	if name == "" {
-		name = "World"
+// serveOpenAPISpec serves the OpenAPI specification in YAML format
+func serveOpenAPISpec(w http.ResponseWriter, r *http.Request) {
+	swagger, err := api.GetSwagger()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to load OpenAPI spec: %v", err), http.StatusInternalServerError)
+		return
 	}
 
+	// Convert to YAML
+	yamlData, err := swagger.MarshalJSON()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to marshal OpenAPI spec: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/x-yaml")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(yamlData)
+}
+
+// serveOpenAPISpecJSON serves the OpenAPI specification in JSON format
+func serveOpenAPISpecJSON(w http.ResponseWriter, r *http.Request) {
+	swagger, err := api.GetSwagger()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to load OpenAPI spec: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	jsonData, err := swagger.MarshalJSON()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to marshal OpenAPI spec: %v", err), http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_, _ = fmt.Fprintf(w, `{"message":"Hello, %s!"}`, name)
+	_, _ = w.Write(jsonData)
 }
 
 // loggingMiddleware logs incoming HTTP requests
@@ -146,14 +147,11 @@ func main() {
 
 	fmt.Println("Successfully connected to database!")
 
-	// Initialize router
-	mux := http.NewServeMux()
-
-	// Setup routes
-	setupRoutes(mux, pool)
+	// Setup OpenAPI server
+	apiHandler := setupAPIServer(pool)
 
 	// Wrap with middleware
-	handler := loggingMiddleware(recoveryMiddleware(mux))
+	handler := loggingMiddleware(recoveryMiddleware(apiHandler))
 
 	// Server configuration
 	port := os.Getenv("PORT")

@@ -14,19 +14,42 @@ Content Management System built with Go and PostgreSQL using a schema-first data
 - **Schema Migration**: psqldef (declarative schema management)
 - **SQL Code Generation**: sqlc (type-safe Go code from SQL)
 - **Database Driver**: pgx/v5 (PostgreSQL driver)
+- **API Specification**: OpenAPI 3.0.3
+- **API Code Generation**: oapi-codegen (generates server interfaces and types from OpenAPI spec)
+- **HTTP Router**: chi v5 (lightweight, idiomatic HTTP router)
 
 ### Project Structure
 ```
 cmd/api/main.go           # Application entry point
+api/
+  openapi.yaml            # OpenAPI 3.0 specification
+  oapi-codegen.yaml       # oapi-codegen configuration
 db/
   schema/schema.sql       # Database schema (managed by psqldef)
   queries/*.sql           # SQL queries with annotations for sqlc
 internal/
+  api/                    # OpenAPI generated code and server implementation
+    server.gen.go         # Generated server interface and types (do not edit)
+    server.go             # Server implementation (implements ServerInterface)
   db/                     # Generated Go code from sqlc (do not edit manually)
-  handler/                # HTTP handlers (presentation layer)
+  handler/                # Legacy HTTP handlers (being migrated to OpenAPI)
   usecase/                # Business logic (application layer)
   repository/             # Data access (repository layer)
 ```
+
+### OpenAPI-First Architecture
+
+This project uses OpenAPI specification to define the API contract:
+1. **API Definition**: Define endpoints, request/response schemas in `api/openapi.yaml`
+2. **Code Generation**: Run oapi-codegen to generate server interface and types in `internal/api/server.gen.go`
+3. **Implementation**: Implement the `ServerInterface` in `internal/api/server.go`
+4. **Integration**: Use the generated `Handler()` function to wire up routes with chi router
+
+The generated code in `internal/api/server.gen.go` includes:
+- Type definitions for all request/response models
+- `ServerInterface`: Interface with methods for each endpoint
+- `Handler()`: Function that creates an http.Handler with all routes configured
+- Embedded OpenAPI spec for serving via `/openapi.json` and `/openapi.yaml`
 
 ### Database-First Architecture
 
@@ -70,7 +93,12 @@ The application follows Clean Architecture with three distinct layers:
 - `make db-migrate` - Apply schema changes from `db/schema/schema.sql`
 - `make db-generate` - Generate Go code from SQL queries using sqlc
 - `make db-reset` - Wipe database and start fresh (removes volumes)
-- `make dev` - Setup complete dev environment (db-up + db-migrate + db-generate)
+
+### API Code Generation
+- `make api-generate` - Generate Go code from OpenAPI spec using oapi-codegen
+
+### Development Setup
+- `make dev` - Setup complete dev environment (db-up + db-migrate + db-generate + api-generate)
 
 ### Running the Application
 - `make run` - Start the API server (requires `make db-up` first)
@@ -85,6 +113,8 @@ The application follows Clean Architecture with three distinct layers:
 
 ### Available Endpoints
 - `GET /health` - Health check with database connectivity test
+- `GET /openapi.yaml` - OpenAPI specification (YAML format)
+- `GET /openapi.json` - OpenAPI specification (JSON format)
 - `GET /api/v1/status` - API status information
 - `GET /api/v1/hello?name=World` - Example endpoint
 - `POST /api/v1/users` - Create user
@@ -92,6 +122,8 @@ The application follows Clean Architecture with three distinct layers:
 - `GET /api/v1/users/{id}` - Get user by ID
 - `PUT /api/v1/users/{id}` - Update user
 - `DELETE /api/v1/users/{id}` - Delete user
+
+All endpoints are defined in `api/openapi.yaml` and automatically mapped to handlers via oapi-codegen.
 
 ### Database Configuration
 Default connection (can override with DATABASE_URL env var):
@@ -124,6 +156,39 @@ The `sqlc.yaml` configures:
 - Output package: `db` in `internal/db/`
 - JSON tags, interfaces, and null type handling
 - pgx/v5 as the SQL package
+
+### Adding New API Endpoints
+
+1. **Define Endpoint in OpenAPI Spec** (`api/openapi.yaml`):
+   - Add path definition with HTTP method, parameters, request/response schemas
+   - Define any new schemas in `components.schemas`
+   - Follow existing patterns for consistency
+
+2. **Regenerate API Code**:
+   ```bash
+   make api-generate
+   ```
+
+3. **Implement Handler Method** in `internal/api/server.go`:
+   - Add method to implement the new `ServerInterface` method
+   - Use the generated request/response types
+   - Call usecase layer for business logic
+   - Handle errors and return appropriate status codes
+
+4. **No Route Registration Needed**:
+   - Routes are automatically registered by oapi-codegen
+   - The generated `Handler()` function wires everything up
+
+**Example**: To add `GET /api/v1/posts`:
+- Add endpoint definition to `api/openapi.yaml`
+- Run `make api-generate`
+- Implement `ListPosts(w http.ResponseWriter, r *http.Request)` in `internal/api/server.go`
+
+### oapi-codegen Configuration
+The `api/oapi-codegen.yaml` configures:
+- Output package: `api` in `internal/api/`
+- chi-server generation for routing
+- Embedded OpenAPI spec for serving
 
 ## Adding New Features
 
@@ -168,25 +233,37 @@ When adding a new feature with CRUD operations:
    - Implement business logic
    - Accept repository interface in constructor
 
-6. **Create Handler** in `internal/handler/post_handler.go`:
-   - Define request/response structs
-   - Implement HTTP handlers
-   - Accept usecase interface in constructor
-   - Use `r.PathValue("id")` for path parameters (Go 1.22+ pattern)
+6. **Define API Endpoints** in `api/openapi.yaml`:
+   - Add paths for each CRUD operation
+   - Define request/response schemas in components
+   - Include proper status codes and error responses
 
-7. **Register Routes** in `cmd/api/main.go`:
-   ```go
-   // In setupRoutes function
-   postRepo := repository.NewPostRepository(queries)
-   postUsecase := usecase.NewPostUsecase(postRepo)
-   postHandler := handler.NewPostHandler(postUsecase)
-
-   mux.HandleFunc("POST /api/v1/posts", postHandler.CreatePost)
-   mux.HandleFunc("GET /api/v1/posts", postHandler.ListPosts)
-   mux.HandleFunc("GET /api/v1/posts/{id}", postHandler.GetPost)
+7. **Regenerate Code**:
+   ```bash
+   make api-generate  # Generate OpenAPI server interface
    ```
 
-**Note**: Follow the user example in `internal/handler/user_handler.go`, `internal/usecase/user_usecase.go`, and `internal/repository/user_repository.go` as reference implementations.
+8. **Update API Server** in `internal/api/server.go`:
+   - Add usecase dependency to Server struct
+   - Implement ServerInterface methods for new endpoints
+   - Map between OpenAPI types and database models
+   - Wire up usecase in `cmd/api/main.go`'s `setupAPIServer` function
+
+**Example for posts feature**:
+```go
+// In internal/api/server.go
+type Server struct {
+    userUsecase usecase.UserUsecase
+    postUsecase usecase.PostUsecase  // Add this
+}
+
+func (s *Server) ListPosts(w http.ResponseWriter, r *http.Request) {
+    posts, err := s.postUsecase.ListPosts(r.Context())
+    // ... handle response
+}
+```
+
+**Note**: Follow the user example in `internal/api/server.go`, `internal/usecase/user_usecase.go`, and `internal/repository/user_repository.go` as reference implementations.
 
 ## Project Context
 
@@ -207,7 +284,11 @@ When adding a new feature with CRUD operations:
 ## Development Guidelines
 - Think in English, generate responses in English
 - Never manually edit files in `internal/db/` - they are generated by sqlc
+- Never manually edit files in `internal/api/server.gen.go` - they are generated by oapi-codegen
 - Always run `make db-generate` after modifying SQL queries or schema
+- Always run `make api-generate` after modifying OpenAPI specification
+- Define API contracts in OpenAPI spec first, then implement handlers
+- Use generated types from OpenAPI for API request/response handling
 
 ## Workflow
 
