@@ -16,8 +16,6 @@ help: ## Show this help message
 
 db-up: ## Start PostgreSQL database
 	docker compose up -d postgres
-	@echo "Waiting for database to be ready..."
-	@sleep 3
 
 db-down: ## Stop PostgreSQL database
 	docker compose down

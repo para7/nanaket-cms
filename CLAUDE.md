@@ -21,7 +21,11 @@ cmd/api/main.go           # Application entry point
 db/
   schema/schema.sql       # Database schema (managed by psqldef)
   queries/*.sql           # SQL queries with annotations for sqlc
-internal/db/              # Generated Go code from sqlc (do not edit manually)
+internal/
+  db/                     # Generated Go code from sqlc (do not edit manually)
+  handler/                # HTTP handlers (presentation layer)
+  usecase/                # Business logic (application layer)
+  repository/             # Data access (repository layer)
 ```
 
 ### Database-First Architecture
@@ -37,6 +41,27 @@ The generated code in `internal/db/` includes:
 - `querier.go`: Interface for all database operations
 - `*.sql.go`: Type-safe query implementations
 
+### Clean Architecture Layers
+
+The application follows Clean Architecture with three distinct layers:
+
+1. **Handler Layer** (`internal/handler/`): HTTP request/response handling
+   - Parses HTTP requests and path parameters
+   - Validates input and returns JSON responses
+   - Delegates business logic to usecase layer
+
+2. **Usecase Layer** (`internal/usecase/`): Business logic and orchestration
+   - Contains application-specific business rules
+   - Coordinates between repositories
+   - Independent of HTTP or database implementations
+
+3. **Repository Layer** (`internal/repository/`): Data access abstraction
+   - Wraps sqlc-generated queries
+   - Provides clean interface to usecase layer
+   - Maps between database operations and domain operations
+
+**Data Flow**: HTTP Request → Handler → Usecase → Repository → sqlc Queries → Database
+
 ## Development Commands
 
 ### Database Management
@@ -49,6 +74,24 @@ The generated code in `internal/db/` includes:
 
 ### Running the Application
 - `make run` - Start the API server (requires `make db-up` first)
+- `make lint` - Run golangci-lint
+- `make lint-fix` - Run golangci-lint with auto-fix
+
+### Server Configuration
+- **Port**: 8080 (override with PORT env var)
+- **Middleware**: Recovery (panic handling) and Logging
+- **Graceful Shutdown**: 30 second timeout on SIGINT/SIGTERM
+- **Timeouts**: Read 15s, Write 15s, Idle 60s
+
+### Available Endpoints
+- `GET /health` - Health check with database connectivity test
+- `GET /api/v1/status` - API status information
+- `GET /api/v1/hello?name=World` - Example endpoint
+- `POST /api/v1/users` - Create user
+- `GET /api/v1/users` - List all users
+- `GET /api/v1/users/{id}` - Get user by ID
+- `PUT /api/v1/users/{id}` - Update user
+- `DELETE /api/v1/users/{id}` - Delete user
 
 ### Database Configuration
 Default connection (can override with DATABASE_URL env var):
@@ -81,6 +124,69 @@ The `sqlc.yaml` configures:
 - Output package: `db` in `internal/db/`
 - JSON tags, interfaces, and null type handling
 - pgx/v5 as the SQL package
+
+## Adding New Features
+
+When adding a new feature with CRUD operations:
+
+1. **Define Database Schema** in `db/schema/schema.sql`:
+   ```sql
+   CREATE TABLE IF NOT EXISTS posts (
+       id BIGSERIAL PRIMARY KEY,
+       title VARCHAR(255) NOT NULL,
+       content TEXT,
+       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+   );
+   ```
+
+2. **Define SQL Queries** in `db/queries/posts.sql`:
+   ```sql
+   -- name: GetPost :one
+   SELECT * FROM posts WHERE id = $1 LIMIT 1;
+
+   -- name: ListPosts :many
+   SELECT * FROM posts ORDER BY id;
+
+   -- name: CreatePost :one
+   INSERT INTO posts (title, content) VALUES ($1, $2) RETURNING *;
+   ```
+
+3. **Run Database Commands**:
+   ```bash
+   make db-migrate    # Apply schema changes
+   make db-generate   # Generate Go code
+   ```
+
+4. **Create Repository** in `internal/repository/post_repository.go`:
+   - Define interface with domain operations
+   - Implement using sqlc-generated queries
+   - Accept `db.Querier` interface in constructor
+
+5. **Create Usecase** in `internal/usecase/post_usecase.go`:
+   - Define interface with business operations
+   - Implement business logic
+   - Accept repository interface in constructor
+
+6. **Create Handler** in `internal/handler/post_handler.go`:
+   - Define request/response structs
+   - Implement HTTP handlers
+   - Accept usecase interface in constructor
+   - Use `r.PathValue("id")` for path parameters (Go 1.22+ pattern)
+
+7. **Register Routes** in `cmd/api/main.go`:
+   ```go
+   // In setupRoutes function
+   postRepo := repository.NewPostRepository(queries)
+   postUsecase := usecase.NewPostUsecase(postRepo)
+   postHandler := handler.NewPostHandler(postUsecase)
+
+   mux.HandleFunc("POST /api/v1/posts", postHandler.CreatePost)
+   mux.HandleFunc("GET /api/v1/posts", postHandler.ListPosts)
+   mux.HandleFunc("GET /api/v1/posts/{id}", postHandler.GetPost)
+   ```
+
+**Note**: Follow the user example in `internal/handler/user_handler.go`, `internal/usecase/user_usecase.go`, and `internal/repository/user_repository.go` as reference implementations.
 
 ## Project Context
 
