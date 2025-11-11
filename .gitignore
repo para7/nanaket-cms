@@ -17,9 +17,6 @@ go.work
 # Dependency directories
 vendor/
 
-# Generated code
-internal/db/*
-!internal/db/.gitkeep
 
 # Environment variables
 .env
@@ -35,3 +32,5 @@ internal/db/*
 # OS
 .DS_Store
 Thumbs.db
+
+bin/

@@ -20,11 +20,16 @@ db-up: ## Start PostgreSQL database
 db-down: ## Stop PostgreSQL database
 	docker compose down
 
+db-run: ## Run a psql shell connected to the database
+	docker compose exec -it postgres psql -U $(DB_USER) -d $(DB_NAME)
+
+
 db-migrate: ## Apply schema migrations using psqldef
 	PGPASSWORD=$(DB_PASSWORD) psqldef -U $(DB_USER) -h $(DB_HOST) -p $(DB_PORT) $(DB_NAME) < db/schema/schema.sql
 	docker compose exec -T postgres psql -U $(DB_USER) -d $(DB_NAME) < db/schema/functions.sql
 
 db-generate: ## Generate Go code from SQL using sqlc
+	rm -rf internal/db/sqlc
 	go tool sqlc generate
 
 db-reset: db-down ## Reset database (remove volumes and restart)
@@ -36,6 +41,9 @@ db-reset: db-down ## Reset database (remove volumes and restart)
 
 dev: db-up db-migrate db-generate ## Setup development environment
 	@echo "Development environment ready!"
+
+build: ## Build the application
+	go build -o bin/api cmd/api/main.go
 
 run: ## Run the application
 	go run cmd/api/main.go

@@ -1,7 +1,8 @@
 -- ユーザー情報テーブル
 CREATE TABLE IF NOT EXISTS users (
     id BIGSERIAL PRIMARY KEY,              -- ユーザーID
-    name VARCHAR(255) NOT NULL,            -- ユーザー名
+    name TEXT NOT NULL,            -- ユーザー名
+    email VARCHAR(255) NOT NULL UNIQUE,     -- メールアドレス
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,  -- 作成日時
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP   -- 更新日時
 );
