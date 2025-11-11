@@ -1,4 +1,4 @@
-.PHONY: help db-up db-down db-migrate db-generate db-reset install-tools lint lint-fix
+.PHONY: help db-up db-down db-migrate db-generate db-reset db-seed db-clean install-tools lint lint-fix
 
 # Database configuration
 DB_HOST=localhost
@@ -39,7 +39,17 @@ db-reset: db-down ## Reset database (remove volumes and restart)
 	@sleep 3
 	$(MAKE) db-migrate
 
-dev: db-up db-migrate db-generate ## Setup development environment
+db-seed: ## Insert initial test data into database
+	docker compose exec -T postgres psql -U $(DB_USER) -d $(DB_NAME) < db/schema/initdata.sql
+	@echo "Initial data inserted successfully!"
+
+db-clean: ## Delete all data from database (requires confirmation)
+	@echo "WARNING: This will delete ALL data from the database!"
+	@echo "Are you sure you want to continue? [y/N] " && read ans && [ $${ans:-N} = y ]
+	docker compose exec -T postgres psql -U $(DB_USER) -d $(DB_NAME) -c "TRUNCATE users, articles, comments, access_tokens RESTART IDENTITY CASCADE;"
+	@echo "All data deleted successfully!"
+
+dev-init: db-up db-migrate db-generate ## Setup development environment
 	@echo "Development environment ready!"
 
 build: ## Build the application
