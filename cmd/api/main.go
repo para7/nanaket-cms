@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/para7/nanaket-cms/internal/db"
 	"github.com/para7/nanaket-cms/internal/handler"
+	"github.com/para7/nanaket-cms/internal/middleware"
 	"github.com/para7/nanaket-cms/internal/repository"
 	"github.com/para7/nanaket-cms/internal/usecase"
 )
@@ -28,16 +29,42 @@ func setupRoutes(mux *http.ServeMux, pool *pgxpool.Pool) {
 
 	// Initialize layers
 	queries := db.New(pool)
+
+	// Auth handler (no usecase, direct query access for simple temporary implementation)
+	authHandler := handler.NewAuthHandler(queries)
+
+	// User layer
 	userRepo := repository.NewUserRepository(queries)
 	userUsecase := usecase.NewUserUsecase(userRepo)
 	userHandler := handler.NewUserHandler(userUsecase)
 
-	// User CRUD endpoints
+	// Article layer
+	articleRepo := repository.NewArticleRepository(queries)
+	articleUsecase := usecase.NewArticleUsecase(articleRepo)
+	articleHandler := handler.NewArticleHandler(articleUsecase)
+
+	// Auth middleware
+	authMiddleware := middleware.AuthMiddleware(queries)
+
+	// Auth endpoints (no authentication required)
+	mux.HandleFunc("POST /api/v1/auth/login", authHandler.Login)
+	mux.HandleFunc("POST /api/v1/auth/logout", authHandler.Logout)
+
+	// User CRUD endpoints (no authentication required for now)
 	mux.HandleFunc("POST /api/v1/users", userHandler.CreateUser)
 	mux.HandleFunc("GET /api/v1/users", userHandler.ListUsers)
 	mux.HandleFunc("GET /api/v1/users/{id}", userHandler.GetUser)
 	mux.HandleFunc("PUT /api/v1/users/{id}", userHandler.UpdateUser)
 	mux.HandleFunc("DELETE /api/v1/users/{id}", userHandler.DeleteUser)
+
+	// Article endpoints
+	// Create, Read, List - no authentication required
+	mux.HandleFunc("POST /api/v1/articles", articleHandler.CreateArticle)
+	mux.HandleFunc("GET /api/v1/articles", articleHandler.ListArticles)
+	mux.HandleFunc("GET /api/v1/articles/{id}", articleHandler.GetArticle)
+	// Update, Delete - authentication required
+	mux.Handle("PUT /api/v1/articles/{id}", authMiddleware(http.HandlerFunc(articleHandler.UpdateArticle)))
+	mux.Handle("DELETE /api/v1/articles/{id}", authMiddleware(http.HandlerFunc(articleHandler.DeleteArticle)))
 }
 
 // healthCheckHandler returns a handler that checks database connectivity
