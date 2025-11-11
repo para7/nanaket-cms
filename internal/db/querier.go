@@ -9,12 +9,16 @@ import (
 )
 
 type Querier interface {
+	CreateAccessToken(ctx context.Context, arg CreateAccessTokenParams) (AccessToken, error)
 	CreateArticle(ctx context.Context, arg CreateArticleParams) (Article, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	DeleteAccessToken(ctx context.Context, token string) error
 	DeleteArticle(ctx context.Context, id int64) error
 	DeleteUser(ctx context.Context, id int64) error
 	GetArticle(ctx context.Context, id int64) (Article, error)
 	GetUser(ctx context.Context, id int64) (User, error)
+	GetUserByEmail(ctx context.Context, email string) (User, error)
+	GetUserByToken(ctx context.Context, token string) (User, error)
 	ListArticles(ctx context.Context) ([]Article, error)
 	ListArticlesByUser(ctx context.Context, userID int64) ([]Article, error)
 	ListUsers(ctx context.Context) ([]User, error)

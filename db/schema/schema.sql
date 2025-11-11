@@ -39,3 +39,19 @@ CREATE TABLE IF NOT EXISTS comments (
 CREATE INDEX IF NOT EXISTS idx_comments_article_id ON comments(article_id);
 -- 作成者によるコメント検索用インデックス
 CREATE INDEX IF NOT EXISTS idx_comments_user_id ON comments(user_id);
+
+
+
+-- アクセストークンテーブル
+CREATE TABLE IF NOT EXISTS access_tokens (
+    id BIGSERIAL PRIMARY KEY,              -- トークンID
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,  -- ユーザーID
+    token VARCHAR(255) NOT NULL UNIQUE,    -- アクセストークン
+    expires_at TIMESTAMP,                  -- 有効期限（NULL = 無期限）
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP  -- 作成日時
+);
+
+-- トークン検索用インデックス
+CREATE INDEX IF NOT EXISTS idx_access_tokens_token ON access_tokens(token);
+-- ユーザーIDによる検索用インデックス
+CREATE INDEX IF NOT EXISTS idx_access_tokens_user_id ON access_tokens(user_id);
