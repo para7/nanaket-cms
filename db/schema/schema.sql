@@ -55,3 +55,34 @@ CREATE TABLE IF NOT EXISTS access_tokens (
 CREATE INDEX IF NOT EXISTS idx_access_tokens_token ON access_tokens(token);
 -- ユーザーIDによる検索用インデックス
 CREATE INDEX IF NOT EXISTS idx_access_tokens_user_id ON access_tokens(user_id);
+
+
+-- 記事の下書き・自動保存テーブル
+CREATE TABLE IF NOT EXISTS article_drafts (
+    id BIGSERIAL PRIMARY KEY,
+    article_id BIGINT REFERENCES articles(id) ON DELETE CASCADE,  -- NULL = 新規記事の下書き
+    user_id BIGINT NOT NULL REFERENCES users(id),  -- 編集者
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    is_auto_saved BOOLEAN NOT NULL DEFAULT true,  -- true: 自動保存, false: 手動保存
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP  -- 保存日時
+);
+
+CREATE INDEX IF NOT EXISTS idx_article_drafts_article_id ON article_drafts(article_id);
+CREATE INDEX IF NOT EXISTS idx_article_drafts_user_id ON article_drafts(user_id);
+CREATE INDEX IF NOT EXISTS idx_article_drafts_created_at ON article_drafts(created_at);
+
+-- 公開記事の履歴テーブル
+CREATE TABLE IF NOT EXISTS article_histories (
+    id BIGSERIAL PRIMARY KEY,  -- IDの時系列順でバージョン管理
+    article_id BIGINT NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    user_id BIGINT NOT NULL REFERENCES users(id),  -- 更新者
+    is_auto_saved BOOLEAN NOT NULL DEFAULT false,  -- 自動更新か手動更新か
+    published_at TIMESTAMP NOT NULL,  -- 公開日時
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP  -- 履歴作成日時
+);
+
+CREATE INDEX IF NOT EXISTS idx_article_histories_article_id ON article_histories(article_id);
+CREATE INDEX IF NOT EXISTS idx_article_histories_created_at ON article_histories(created_at);
