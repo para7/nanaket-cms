@@ -2,17 +2,17 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/para7/nanaket-cms/internal/db"
 )
 
 // ArticleRepository defines the interface for article data access
 type ArticleRepository interface {
-	Create(ctx context.Context, userID int64, title, content string, publishedAt pgtype.Timestamp) (db.Article, error)
+	Create(ctx context.Context, userID int64, title, content string, publishedAt sql.NullString) (db.Article, error)
 	GetByID(ctx context.Context, id int64) (db.Article, error)
 	List(ctx context.Context) ([]db.Article, error)
-	Update(ctx context.Context, id, userID int64, title, content string, publishedAt pgtype.Timestamp) (db.Article, error)
+	Update(ctx context.Context, id, userID int64, title, content string, publishedAt sql.NullString) (db.Article, error)
 	Delete(ctx context.Context, id int64) error
 }
 
@@ -29,7 +29,7 @@ func NewArticleRepository(querier db.Querier) ArticleRepository {
 }
 
 // Create creates a new article
-func (r *articleRepository) Create(ctx context.Context, userID int64, title, content string, publishedAt pgtype.Timestamp) (db.Article, error) {
+func (r *articleRepository) Create(ctx context.Context, userID int64, title, content string, publishedAt sql.NullString) (db.Article, error) {
 	return r.querier.CreateArticle(ctx, db.CreateArticleParams{
 		UserID:      userID,
 		Title:       title,
@@ -49,7 +49,7 @@ func (r *articleRepository) List(ctx context.Context) ([]db.Article, error) {
 }
 
 // Update updates an article
-func (r *articleRepository) Update(ctx context.Context, id, userID int64, title, content string, publishedAt pgtype.Timestamp) (db.Article, error) {
+func (r *articleRepository) Update(ctx context.Context, id, userID int64, title, content string, publishedAt sql.NullString) (db.Article, error) {
 	return r.querier.UpdateArticle(ctx, db.UpdateArticleParams{
 		ID:          id,
 		UserID:      userID,

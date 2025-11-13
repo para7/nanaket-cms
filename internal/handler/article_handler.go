@@ -1,13 +1,13 @@
 package handler
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/para7/nanaket-cms/internal/usecase"
 )
 
@@ -56,15 +56,15 @@ func (h *ArticleHandler) CreateArticle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Convert publishedAt to pgtype.Timestamp
-	var publishedAt pgtype.Timestamp
+	// Convert publishedAt to sql.NullString (ISO 8601 format)
+	var publishedAt sql.NullString
 	if req.PublishedAt != nil {
-		publishedAt = pgtype.Timestamp{
-			Time:  time.Unix(*req.PublishedAt, 0),
-			Valid: true,
+		publishedAt = sql.NullString{
+			String: time.Unix(*req.PublishedAt, 0).Format(time.RFC3339),
+			Valid:  true,
 		}
 	} else {
-		publishedAt = pgtype.Timestamp{
+		publishedAt = sql.NullString{
 			Valid: false,
 		}
 	}
@@ -147,15 +147,15 @@ func (h *ArticleHandler) UpdateArticle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Convert publishedAt to pgtype.Timestamp
-	var publishedAt pgtype.Timestamp
+	// Convert publishedAt to sql.NullString (ISO 8601 format)
+	var publishedAt sql.NullString
 	if req.PublishedAt != nil {
-		publishedAt = pgtype.Timestamp{
-			Time:  time.Unix(*req.PublishedAt, 0),
-			Valid: true,
+		publishedAt = sql.NullString{
+			String: time.Unix(*req.PublishedAt, 0).Format(time.RFC3339),
+			Valid:  true,
 		}
 	} else {
-		publishedAt = pgtype.Timestamp{
+		publishedAt = sql.NullString{
 			Valid: false,
 		}
 	}

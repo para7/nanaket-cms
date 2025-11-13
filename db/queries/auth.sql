@@ -14,7 +14,7 @@ RETURNING *;
 SELECT u.* FROM users u
 INNER JOIN access_tokens t ON u.id = t.user_id
 WHERE t.token = $1
-  AND (t.expires_at IS NULL OR t.expires_at > CURRENT_TIMESTAMP)
+  AND (t.expires_at IS NULL OR t.expires_at > datetime('now'))
 LIMIT 1;
 
 -- name: DeleteAccessToken :exec

@@ -3,6 +3,11 @@ module github.com/para7/nanaket-cms
 go 1.25.3
 
 require (
+	github.com/syumai/workers v0.26.3
+	modernc.org/sqlite v1.38.2
+)
+
+require (
 	cel.dev/expr v0.24.0 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
@@ -14,10 +19,6 @@ require (
 	github.com/google/cel-go v0.26.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/jackc/pgpassfile v1.0.0 // indirect
-	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
-	github.com/jackc/pgx/v5 v5.7.6 // indirect
-	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
@@ -53,7 +54,6 @@ require (
 	modernc.org/libc v1.66.3 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
-	modernc.org/sqlite v1.38.2 // indirect
 )
 
 tool github.com/sqlc-dev/sqlc/cmd/sqlc

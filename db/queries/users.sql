@@ -16,7 +16,7 @@ RETURNING *;
 
 -- name: UpdateUser :one
 UPDATE users
-SET email = $1, name = $2, updated_at = CURRENT_TIMESTAMP
+SET email = $1, name = $2, updated_at = datetime('now')
 WHERE id = $3
 RETURNING *;
 

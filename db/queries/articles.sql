@@ -16,7 +16,7 @@ RETURNING *;
 
 -- name: UpdateArticle :one
 UPDATE articles
-SET user_id = $1, title = $2, content = $3, published_at = $4, updated_at = CURRENT_TIMESTAMP
+SET user_id = $1, title = $2, content = $3, published_at = $4, updated_at = datetime('now')
 WHERE id = $5
 RETURNING *;
 
